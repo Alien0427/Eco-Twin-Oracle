@@ -1,0 +1,9 @@
+{
+  "source_directories": ["."],
+  "search_path": [
+    ".",
+    "C:/Users/asus/AppData/Roaming/Python/Python311/site-packages",
+    "C:/Program Files/Python311/Lib/site-packages"
+  ],
+  "python_executable": "C:/Program Files/Python311/python.exe"
+}

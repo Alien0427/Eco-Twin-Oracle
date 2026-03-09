@@ -1,0 +1,26 @@
+-- _h_batch_production_data.xlsx columns --
+Batch_ID                object
+Granulation_Time         int64
+Binder_Amount          float64
+Drying_Temp              int64
+Drying_Time              int64
+Compression_Force      float64
+Machine_Speed            int64
+Lubricant_Conc         float64
+Moisture_Content       float64
+Tablet_Weight          float64
+Hardness                 int64
+Friability             float64
+Disintegration_Time    float64
+Dissolution_Rate       float64
+Content_Uniformity     float64
+dtype: object
+
+  Batch_ID  ...  Content_Uniformity
+0     T001  ...                98.7
+1     T002  ...               101.2
+2     T003  ...                97.3
+3     T004  ...                95.9
+4     T005  ...               103.5
+
+[5 rows x 15 columns]
