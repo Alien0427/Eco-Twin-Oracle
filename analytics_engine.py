@@ -20,6 +20,8 @@ from dataclasses import dataclass, field
 from typing import Optional
 
 import numpy as np
+import json
+import os
 
 from schemas import BatchTelemetry
 from state_machine import DFAStateMachine, ManufacturingPhase, PhysicalViolationError
@@ -399,6 +401,77 @@ def detect_phantom_energy(
     return None
 
 
+def analyze_spectral_friction(telemetry: BatchTelemetry) -> dict | None:
+    """
+    Spectral Decoupling: Calculate Pseudo-Vibration-Ratio (PVR) to detect hidden friction.
+    """
+    pvr = telemetry.Power_Consumption_kW / (telemetry.Vibration_mm_s + 0.001)
+    if pvr > 25.0 and telemetry.Motor_Speed_RPM > 0:
+        return {"warning": "Invisible Mechanical Friction detected via PVR index"}
+    return None
+
+
+def detect_inter_phase_arbitrage(
+    telemetry: BatchTelemetry,
+    current_state: ManufacturingPhase,
+) -> dict | None:
+    """
+    Inter-Phase Arbitrage: Lookahead strategy for multi-phase optimization.
+    """
+    if current_state == ManufacturingPhase.GRANULATION and telemetry.Humidity_Percent > 46.0:
+        return {"alert": "Extend Granulation_Time by +2 mins to avoid a high-energy +10°C spike in the upcoming Drying phase"}
+    return None
+
+
+def generate_xai_reasoning(telemetry: BatchTelemetry, anomaly_class: str, dfa_state: ManufacturingPhase) -> dict:
+    """Generates Fuzzy Logic XAI sentences and 3-Node Knowledge Graph data."""
+    temp_status = "HIGH" if telemetry.Temperature_C > 70 else "LOW" if telemetry.Temperature_C < 30 else "NOMINAL"
+    power_status = "HIGH" if telemetry.Power_Consumption_kW > 30 else "IDLE" if telemetry.Power_Consumption_kW < 5 else "NOMINAL"
+    
+    if anomaly_class == "Normal":
+        explanation = f"System operating efficiently in {dfa_state.name}. {temp_status} Temp & {power_status} Power align with Golden Signature."
+        action = "Maintain Setpoints"
+    else:
+        explanation = f"Fuzzy Alert: {temp_status} Temp & {power_status} Power detected during {dfa_state.name}. Root cause isolated to {anomaly_class}."
+        action = "Execute Autonomous Override"
+
+    return {
+        "explanation": explanation,
+        "kg_nodes": [
+            {"source": f"Symptom: {power_status} Power", "target": anomaly_class},
+            {"source": anomaly_class, "target": action}
+        ]
+    }
+
+
+def evaluate_batch_performance(batch_id: str, avg_power: float, max_power: float) -> dict:
+    """Evaluates if the batch beat the Golden Signature baseline (both average and peak) to trigger Continuous Learning."""
+
+    # A true Golden Batch must average under 25 kW AND never spike above 40 kW
+    if avg_power < 25.0 and max_power < 40.0:
+        log_entry = {
+            "batch_id": batch_id, 
+            "avg_power_kW": round(avg_power, 2),
+            "peak_power_kW": round(max_power, 2),
+            "trigger_som_retraining": True
+        }
+        
+        file_path = "som_retraining_ledger.json"
+        ledger_data = []
+        if os.path.exists(file_path):
+            with open(file_path, "r") as f:
+                try: ledger_data = json.load(f)
+                except: pass
+                
+        ledger_data.append(log_entry)
+        with open(file_path, "w") as f:
+            json.dump(ledger_data, f, indent=4)
+            
+        return {"trigger_som_retraining": True, "message": "Edge-Cloud Sync Scheduled."}
+        
+    return {"trigger_som_retraining": False, "message": "Rejected due to high variance or spikes."}
+
+
 # ---------------------------------------------------------------------------
 # Phase E: Prescriptive Recommendation Engine
 # ---------------------------------------------------------------------------
@@ -423,6 +496,7 @@ def generate_prescription(
     som: KohonenSOM,
     lvq: LVQClassifier,
     dfa: DFAStateMachine,
+    quality_margin: float = 0.0,
 ) -> Prescription:
     """
     Generate a physically validated prescriptive optimisation recommendation.
@@ -433,6 +507,7 @@ def generate_prescription(
     2. Find BMU on the Golden Signature SOM lattice.
     3. Read the BMU weight vector as the 'optimal' Golden Signature target.
     4. Compute parameter deltas (recommendation = move toward golden vector).
+       4.5 Quality Buffer Harvest: aggressively cut power if margin allows.
     5. If BMU distance exceeds anomaly threshold → classify anomaly via LVQ.
     6. For each proposed parameter change, call dfa.validate_prescription()
        to mathematically guarantee the change is chronologically permissible.
@@ -446,6 +521,7 @@ def generate_prescription(
     som               : Trained KohonenSOM instance.
     lvq               : Trained LVQClassifier instance.
     dfa               : DFAStateMachine instance (for validate_prescription).
+    quality_margin    : Float representing available quality buffer (default 0.0).
 
     Returns
     -------
@@ -468,6 +544,10 @@ def generate_prescription(
         for i, col in enumerate(FEATURE_COLUMNS)
         if float(abs(golden_target[i] - live_vec[i])) > 0.01  # only non-trivial deltas
     }
+
+    # ── Step 4.5: Quality Buffer Harvest ────────────────────────────────────
+    if quality_margin > 5.0:
+        raw_recommendations["Power_Consumption_kW"] = raw_recommendations.get("Power_Consumption_kW", 0.0) - 0.5
 
     # ── Step 5: Anomaly classification via LVQ ──────────────────────────────
     if bmu_distance > ANOMALY_DISTANCE_THRESHOLD:

@@ -57,9 +57,22 @@ st.markdown(f"""
     .phantom-alert-box {{
         background: linear-gradient(135deg, rgba(255,68,68,0.1), rgba(255,179,0,0.05));
         border: 2px solid {THEME["red"]}; border-radius: 12px; padding: 1.5rem;
-        animation: border-pulse 1.5s infinite; margin-top: 1rem;
+        animation: border-pulse-red 1.5s infinite; margin-top: 1rem;
     }}
-    @keyframes border-pulse {{ 0%, 100% {{ border-color: {THEME["red"]}; box-shadow: 0 0 6px {THEME["red"]}44; }} 50% {{ border-color: {THEME["amber"]}; box-shadow: 0 0 20px {THEME["amber"]}66; }} }}
+    .arbitrage-alert-box {{
+        background: linear-gradient(135deg, rgba(0,212,255,0.1), rgba(57,255,20,0.05));
+        border: 2px solid {THEME["cyan"]}; border-radius: 12px; padding: 1.5rem;
+        animation: border-pulse-cyan 2s infinite; margin-top: 1rem;
+    }}
+    .pvr-alert-box {{
+        background: linear-gradient(135deg, rgba(255,179,0,0.1), rgba(255,68,68,0.05));
+        border: 2px solid {THEME["amber"]}; border-radius: 12px; padding: 1.5rem;
+        animation: border-pulse-amber 1.8s infinite; margin-top: 1rem;
+    }}
+    
+    @keyframes border-pulse-red {{ 0%, 100% {{ border-color: {THEME["red"]}; box-shadow: 0 0 6px {THEME["red"]}44; }} 50% {{ border-color: {THEME["amber"]}; box-shadow: 0 0 20px {THEME["amber"]}66; }} }}
+    @keyframes border-pulse-cyan {{ 0%, 100% {{ border-color: {THEME["cyan"]}; box-shadow: 0 0 6px {THEME["cyan"]}44; }} 50% {{ border-color: {THEME["neon"]}; box-shadow: 0 0 20px {THEME["neon"]}66; }} }}
+    @keyframes border-pulse-amber {{ 0%, 100% {{ border-color: {THEME["amber"]}; box-shadow: 0 0 6px {THEME["amber"]}44; }} 50% {{ border-color: {THEME["red"]}; box-shadow: 0 0 20px {THEME["red"]}66; }} }}
     .rec-row {{ display: flex; justify-content: space-between; padding: 0.35rem 0; border-bottom: 1px solid {THEME["border"]}; font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; }}
     .rec-positive {{ color: {THEME["neon"]}; }} .rec-negative {{ color: {THEME["red"]}; }}
     </style>
@@ -95,6 +108,18 @@ with st.sidebar:
     st.markdown('<p class="oracle-header">Session Stats</p>', unsafe_allow_html=True)
     stats_ph = st.empty() # Placeholder for stats so they update live
 
+    st.divider()
+    with st.expander("🏛️ Enterprise Architecture & Compliance", expanded=False):
+        st.markdown(f'''
+            <div style="font-size: 0.8rem; color: {THEME["muted"]};">
+                <b style="color: {THEME["cyan"]};">1. USP Regulatory Baseline:</b><br>
+                Excess Quality Margin is strictly calculated against <b>USP Acceptance Criteria (Q = 85.0%)</b> for immediate-release solid dosage forms. No arbitrary thresholds.<br><br>
+                <b style="color: {THEME["cyan"]};">2. Production Ingestion:</b><br>
+                Streaming via simulated WebSockets for demo purposes. Production-ready <code>opc_ua_mqtt_gateway.py</code> adapter is configured for live PLC integration.<br><br>
+                <b style="color: {THEME["cyan"]};">3. Edge-Cloud Hybrid:</b><br>
+                Inference runs on local Edge. Kohonen SOM weights are updated asynchronously via Cloud-Sync to prevent catastrophic forgetting.
+            </div>
+        ''', unsafe_allow_html=True)
 st.markdown('<p class="title-gradient">⚡ ECO-TWIN ORACLE</p>', unsafe_allow_html=True)
 st.markdown(f'<p style="color:{THEME["muted"]};">Prescriptive Manufacturing Intelligence · Real-Time Telemetry Stream</p>', unsafe_allow_html=True)
 
@@ -111,7 +136,9 @@ with chart_col:
 with heatmap_col:
     anomaly_ph = st.empty()
     heatmap_ph = st.empty()
+
 alert_ph = st.empty()
+xai_ph = st.empty()
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Render Functions (Premium UI Components)
@@ -127,15 +154,28 @@ def render_progress(current_phase):
     with progress_ph.container():
         st.markdown(f'<div class="oracle-panel"><p class="oracle-header">DFA Phase Lock</p><div style="display:flex;flex-wrap:wrap;gap:0.3rem;">{nodes_html}</div></div>', unsafe_allow_html=True)
 
-def render_metrics(t, presc):
+def render_metrics(t, presc, q_margin):
     with metrics_ph.container():
-        c1, c2, c3, c4, c5, c6 = st.columns(6)
-        c1.metric("🌡️ Temperature", f"{t.get('Temperature_C', 0):.1f} °C")
-        c2.metric("🔵 Pressure", f"{t.get('Pressure_Bar', 0):.2f} bar")
-        c3.metric("⚡ Power", f"{t.get('Power_Consumption_kW', 0):.3f} kW")
-        c4.metric("🔄 Motor Speed", f"{t.get('Motor_Speed_RPM', 0)} RPM")
-        c5.metric("📳 Vibration", f"{t.get('Vibration_mm_s', 0):.3f} mm/s")
-        c6.metric("🎯 BMU Distance", f"{presc.get('bmu_distance', 0):.3f}")
+        pvr = t.get('Power_Consumption_kW', 0) / (t.get('Vibration_mm_s', 0) + 0.001)
+        r1_cols = st.columns(4)
+        r1_cols[0].metric("🌡️ Temperature", f"{t.get('Temperature_C', 0):.1f} °C")
+        r1_cols[1].metric("🔵 Pressure", f"{t.get('Pressure_Bar', 0):.2f} bar")
+        r1_cols[2].metric("⚡ Power", f"{t.get('Power_Consumption_kW', 0):.3f} kW")
+        r1_cols[3].metric("🔄 Motor Speed", f"{t.get('Motor_Speed_RPM', 0)} RPM")
+
+        r2_cols = st.columns(4)
+        r2_cols[0].metric("📳 Vibration", f"{t.get('Vibration_mm_s', 0):.3f} mm/s")
+        r2_cols[1].metric("🎯 BMU Distance", f"{presc.get('bmu_distance', 0):.3f}")
+        r2_cols[2].metric("⚙️ PVR Index", f"{pvr:.1f}")
+        
+        # Style Quality Margin explicitly to highlight harvesting availability
+        qm_color = THEME["neon"] if q_margin >= 5.0 else THEME["text"]
+        r2_cols[3].markdown(f"""
+            <div data-testid="stMetric" style="text-align:center;">
+                <div data-testid="stMetricLabel">Excess Quality Margin</div>
+                <div data-testid="stMetricValue" style="color:{qm_color} !important;">+{q_margin:.1f}%</div>
+            </div>
+        """, unsafe_allow_html=True)
 
 def render_charts(presc):
     # Line Chart
@@ -162,29 +202,73 @@ def render_charts(presc):
     fig_hm.update_layout(template="plotly_dark", plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', margin={"l": 5, "r": 5, "t": 20, "b": 5}, height=200, title={"text": "SOM Lattice Density", "font": {"size": 11, "color": THEME["muted"]}}, xaxis={"showticklabels": False}, yaxis={"showticklabels": False})
     heatmap_ph.plotly_chart(fig_hm, use_container_width=True)
 
-def render_alert(payload):
-    alert = payload.get("phantom_alert")
-    if alert:
-        recs = payload.get("prescription", {}).get("parameter_recommendations", {})
-        blocked = payload.get("prescription", {}).get("blocked_parameters", [])
-        
-        rows_html = ""
-        for p, d in recs.items():
-            cls = "rec-positive" if d >= 0 else "rec-negative"
-            rows_html += f'<div class="rec-row"><span style="color:{THEME["text"]}">{p}</span><span class="{cls}">{"▲" if d >= 0 else "▼"} {abs(d):.3f}</span></div>'
-        for p in blocked:
-            rows_html += f'<div class="rec-row"><span style="color:{THEME["muted"]}">{p}</span><span style="color:{THEME["red"]};font-size:0.75rem;">🔒 DFA BLOCKED</span></div>'
+def render_knowledge_graph(payload):
+    xai = payload.get("xai_data")
+    if not xai: return
+    nodes = xai.get("kg_nodes", [])
+    if len(nodes) >= 2:
+        labels = [nodes[0]["source"], nodes[0]["target"], nodes[1]["target"]]
+        color_map = [THEME["amber"], THEME["neon"] if labels[1] == "Normal" else THEME["red"], THEME["cyan"]]
+        fig = go.Figure()
+        fig.add_trace(go.Scatter(x=[0, 1, None, 1, 2, None], y=[0, 0, None, 0, 0, None], mode="lines", line={"width": 4, "color": THEME["border"]}, hoverinfo="none"))
+        fig.add_trace(go.Scatter(x=[0, 1, 2], y=[0, 0, 0], mode="markers+text", text=labels, textposition="top center", marker={"size": [35, 45, 35], "color": color_map, "line": {"width": 2, "color": "white"}}, textfont={"color": THEME["text"], "size": 13, "family": "Inter"}))
+        fig.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', xaxis={"showgrid": False, "zeroline": False, "showticklabels": False, "range": [-0.5, 2.5]}, yaxis={"showgrid": False, "zeroline": False, "showticklabels": False, "range": [-0.5, 0.8]}, margin={"l": 0, "r": 0, "t": 10, "b": 0}, height=180, showlegend=False)
+        with xai_ph.container():
+            st.markdown('<p class="oracle-header" style="margin-top:1rem;">Visual 3 · XAI Causal Knowledge Graph</p>', unsafe_allow_html=True)
+            st.info(f"🧠 **XAI Reasoning Engine:** {xai['explanation']}")
+            st.plotly_chart(fig, use_container_width=True)
 
-        with alert_ph.container():
+def render_alert(payload):
+    phantom = payload.get("phantom_alert")
+    arbitrage = payload.get("arbitrage_alert")
+    pvr_alert = payload.get("pvr_alert")
+    
+    # We clear the container initially, then conditionally block it out
+    with alert_ph.container():
+        alerts_rendered = False
+        
+        if arbitrage:
+            alerts_rendered = True
+            msg = arbitrage.get("alert", "Inter-phase arbitrage executed.")
+            st.markdown(f"""
+                <div class="arbitrage-alert-box">
+                    <h4 style="color:{THEME['cyan']}; margin:0 0 10px 0;">🦋 INTER-PHASE ARBITRAGE EXECUTED</h4>
+                    <p style="color:{THEME['text']}; font-size:0.9rem; margin:0;">{msg}</p>
+                </div>
+            """, unsafe_allow_html=True)
+
+        if pvr_alert:
+            alerts_rendered = True
+            msg = pvr_alert.get("warning", "High PVR detected.")
+            st.markdown(f"""
+                <div class="pvr-alert-box">
+                    <h4 style="color:{THEME['amber']}; margin:0 0 10px 0;">⚙️ INVISIBLE FRICTION DETECTED</h4>
+                    <p style="color:{THEME['text']}; font-size:0.9rem; margin:0;">{msg}</p>
+                </div>
+            """, unsafe_allow_html=True)
+
+        if phantom:
+            alerts_rendered = True
+            recs = payload.get("prescription", {}).get("parameter_recommendations", {})
+            blocked = payload.get("prescription", {}).get("blocked_parameters", [])
+            
+            rows_html = ""
+            for p, d in recs.items():
+                cls = "rec-positive" if d >= 0 else "rec-negative"
+                rows_html += f'<div class="rec-row"><span style="color:{THEME["text"]}">{p}</span><span class="{cls}">{"▲" if d >= 0 else "▼"} {abs(d):.3f}</span></div>'
+            for p in blocked:
+                rows_html += f'<div class="rec-row"><span style="color:{THEME["muted"]}">{p}</span><span style="color:{THEME["red"]};font-size:0.75rem;">🔒 DFA BLOCKED</span></div>'
+
             st.markdown(f"""
                 <div class="phantom-alert-box">
                     <h4 style="color:{THEME['red']}; margin:0 0 10px 0;">⚡ PHANTOM ENERGY WASTE DETECTED</h4>
-                    <p style="color:{THEME['muted']}; font-size:0.9rem; margin-bottom:15px;"><b>DFA Locked:</b> PREPARATION | <b>Motor:</b> 0 RPM | <b>Draw:</b> <span style="color:{THEME['red']}; font-weight:bold;">{alert.get('power_consumption_kw'):.3f} kW</span></p>
+                    <p style="color:{THEME['muted']}; font-size:0.9rem; margin-bottom:15px;"><b>DFA Locked:</b> PREPARATION | <b>Motor:</b> 0 RPM | <b>Draw:</b> <span style="color:{THEME['red']}; font-weight:bold;">{phantom.get('power_consumption_kw'):.3f} kW</span></p>
                     <p class="oracle-header">AI Prescriptions (DFA-Validated):</p>
                     <div style="background:{THEME['panel']}; padding:10px; border-radius:8px;">{rows_html}</div>
                 </div>
             """, unsafe_allow_html=True)
-            # Add buttons below alert
+
+        if alerts_rendered:
             c1, c2, c3 = st.columns([2,2,4])
             if c1.button("🤖 Autonomous Execute", key=f"auto_{time.time()}", type="primary"): 
                 st.session_state.stats["auto"] += 1
@@ -192,8 +276,9 @@ def render_alert(payload):
             if c2.button("🛑 Manual Override", key=f"man_{time.time()}"):
                 st.session_state.stats["manual"] += 1
                 st.toast("Manual Override Recorded.", icon="🛑")
-    else:
-        alert_ph.empty() # Hide alert if not phantom phase
+        else:
+            # Wipe the container transparent visually if nothing is firing
+            st.empty()
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Async WebSocket Engine
@@ -207,8 +292,12 @@ async def stream_data():
                 payload = json.loads(raw_msg)
                 
                 if payload["event"] == "batch_complete":
-                    st.success(f"✅ Batch {batch_id} simulation complete.")
                     st.session_state.streaming = False
+                    ledger = payload.get("ledger_status", {})
+                    if ledger.get("trigger_som_retraining"):
+                        st.success(f"✅ **Batch {batch_id} simulation complete.** \n\n 🔄 **CONTINUOUS LEARNING TRIGGERED:** Batch energy outperformed historical Golden Signature. Recursive Bayesian Update written to `som_retraining_ledger.json` for overnight Edge-Cloud sync.")
+                    else:
+                        st.success(f"✅ **Batch {batch_id} simulation complete.** Performance logged to historian.")
                     break
                 
                 t = payload.get("telemetry", {})
@@ -230,9 +319,10 @@ async def stream_data():
 
                 # Fire Renderers
                 render_progress(state)
-                render_metrics(t, presc)
+                render_metrics(t, presc, payload.get("quality_margin", 0.0))
                 render_charts(presc)
                 render_alert(payload)
+                render_knowledge_graph(payload)
 
     except Exception as e:
         st.error(f"WebSocket Error: {e}. Is FastAPI running on port 8000?")

@@ -45,6 +45,10 @@ from analytics_engine import (
     _telemetry_to_vector,
     detect_phantom_energy,
     generate_prescription,
+    analyze_spectral_friction,
+    detect_inter_phase_arbitrage,
+    generate_xai_reasoning,
+    evaluate_batch_performance,
 )
 from schemas import BatchTelemetry
 from state_machine import DFAStateMachine, ManufacturingPhase
@@ -138,6 +142,10 @@ class WebSocketPayload(BaseModel):
     dfa_state: Optional[str] = None
     prescription: Optional[dict[str, Any]] = None
     phantom_alert: Optional[dict[str, Any]] = None
+    pvr_alert: Optional[dict[str, Any]] = None
+    arbitrage_alert: Optional[dict[str, Any]] = None
+    xai_data: Optional[dict[str, Any]] = None
+    quality_margin: float = 0.0
     timestamp_ms: int = 0
 
 
@@ -419,6 +427,10 @@ async def websocket_live_batch(websocket: WebSocket, batch_id: str):
            "dfa_state":    "GRANULATION",
            "prescription": { ...PrescriptionResponse fields... },
            "phantom_alert": null | { ...PhantomAlertResponse fields... },
+           "pvr_alert": null | { ... },
+           "arbitrage_alert": null | { ... },
+           "xai_data": null | { ... },
+           "quality_margin": 1.25,
            "timestamp_ms": 1709999999000
          }
     4. When the batch is exhausted a {"event": "batch_complete"} frame is sent
@@ -432,8 +444,16 @@ async def websocket_live_batch(websocket: WebSocket, batch_id: str):
     lvq: LVQClassifier = app.state.lvq
     dfa = DFAStateMachine()  # Fresh DFA per batch lifecycle
 
+    power_history: list[float] = []
+
     try:
-        async for telemetry, current_phase in stream_batch_data(batch_id, tick_delay=0.0):
+        async for telemetry, current_phase, quality_margin in stream_batch_data(batch_id, tick_delay=0.0):
+            power_history.append(telemetry.Power_Consumption_kW)
+
+            # ── Novel Detectors ──────────────────────────────────────────
+            pvr_alert = analyze_spectral_friction(telemetry)
+            arbitrage_alert = detect_inter_phase_arbitrage(telemetry, current_phase)
+
             # ── Phantom energy detection ─────────────────────────────────
             phantom_alert: Optional[PhantomEnergyAlert] = detect_phantom_energy(
                 telemetry, current_phase
@@ -441,9 +461,12 @@ async def websocket_live_batch(websocket: WebSocket, batch_id: str):
 
             # ── Prescriptive recommendation (DFA-guarded) ────────────────
             prescription: Prescription = generate_prescription(
-                telemetry, current_phase, som, lvq, dfa
+                telemetry, current_phase, som, lvq, dfa, quality_margin
             )
             prescription_resp = PrescriptionResponse.from_dataclass(prescription)
+
+            # ── Generate XAI Reasoning ────────────────────────────────────
+            xai_data = generate_xai_reasoning(telemetry, prescription.anomaly_class, current_phase)
 
             # ── Update shared app state for REST polling ──────────────────
             app.state.active_prescriptions[batch_id] = prescription_resp
@@ -464,6 +487,10 @@ async def websocket_live_batch(websocket: WebSocket, batch_id: str):
                     PhantomAlertResponse.from_dataclass(phantom_alert).model_dump()
                     if phantom_alert else None
                 ),
+                "pvr_alert": pvr_alert,
+                "arbitrage_alert": arbitrage_alert,
+                "xai_data": xai_data,
+                "quality_margin": quality_margin,
                 "timestamp_ms": int(time.time() * 1000),
             }
 
@@ -472,14 +499,19 @@ async def websocket_live_batch(websocket: WebSocket, batch_id: str):
             # ── Simulated 200ms real-time latency ─────────────────────────
             await asyncio.sleep(1.5)
 
-        # ── Batch exhausted — terminal frame ─────────────────────────────
-        await websocket.send_text(json.dumps({
+        # Calculate both average AND peak power
+        avg_batch_power = sum(power_history) / len(power_history) if power_history else 0
+        max_batch_power = max(power_history) if power_history else 0
+        
+        # Run the upgraded strict evaluation
+        ledger_result = evaluate_batch_performance(batch_id, avg_batch_power, max_batch_power)
+        
+        # Send payload
+        await websocket.send_json({
             "event": "batch_complete",
-            "batch_id": batch_id,
-            "final_dfa_state": ManufacturingPhase.QUALITY_TESTING.name,
-            "timestamp_ms": int(time.time() * 1000),
-        }))
-        logger.info("[WS] Batch '%s' stream complete.", batch_id)
+            "ledger_status": ledger_result
+        })
+        logger.info("[WS] Batch '%s' stream complete. Ledger Status: %s", batch_id, ledger_result["trigger_som_retraining"])
 
     except WebSocketDisconnect:
         logger.info("[WS] Client disconnected from batch '%s'.", batch_id)

@@ -17,11 +17,21 @@ stream_batch_data (process body)
 """
 
 import asyncio
+import logging
 import pandas as pd
 from typing import AsyncGenerator
 
 from schemas import BatchTelemetry
 from state_machine import DFAStateMachine, ManufacturingPhase, PhysicalViolationError
+
+logger = logging.getLogger(__name__)
+
+"""
+Regulatory Baseline Config:
+According to United States Pharmacopeia (USP) guidelines for immediate-release solid dosage forms, the baseline acceptance criteria (Q) is 80% - 85% dissolution.
+We establish 85.0% as our strict quality floor. Any dissolution rate > 85.0% is treated as a harvestable quality buffer for carbon reduction.
+"""
+USP_ACCEPTANCE_CRITERIA_Q = 85.0
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -140,7 +150,7 @@ def _sync_dfa_state(
 async def stream_batch_data(
     batch_id: str,
     tick_delay: float = TICK_DELAY_SECONDS,
-) -> AsyncGenerator[tuple[BatchTelemetry, ManufacturingPhase], None]:
+) -> AsyncGenerator[tuple[BatchTelemetry, ManufacturingPhase, float], None]:
     """
     Async generator (Jackson Structured Design process body) that:
 
@@ -159,10 +169,26 @@ async def stream_batch_data(
     df = _load_and_sort_sheet(batch_id)
     dfa = DFAStateMachine()
 
+    # ── Lookup Quality Margin from Production Data ────────────────────────
+    try:
+        prod_df = pd.read_excel("_h_batch_production_data.xlsx", sheet_name="BatchData")
+        batch_row = prod_df[prod_df["Batch_ID"] == batch_id]
+        if not batch_row.empty:
+            dissolution_rate = float(batch_row.iloc[0]["Dissolution_Rate"])
+        else:
+            dissolution_rate = USP_ACCEPTANCE_CRITERIA_Q
+    except Exception as e:
+        print(f"[StreamSimulator] Warning: Could not read production data: {e}")
+        dissolution_rate = USP_ACCEPTANCE_CRITERIA_Q
+    
+    quality_margin = dissolution_rate - USP_ACCEPTANCE_CRITERIA_Q
+    logger.info(f"Loaded USP Baseline: {USP_ACCEPTANCE_CRITERIA_Q}%. Active Margin: {quality_margin}%")
+
     print(
         f"[StreamSimulator] Starting batch '{batch_id}' | "
         f"{len(df)} rows | "
-        f"DFA initialised at state: {dfa.current_state.name}"
+        f"DFA initialised at state: {dfa.current_state.name} | "
+        f"Quality Margin: {quality_margin:.2f}"
     )
 
     # ── Process ─────────────────────────────────────────────────────────────
@@ -173,8 +199,8 @@ async def stream_batch_data(
         # State: synchronise DFA with the physical phase from the CSV
         current_phase = _sync_dfa_state(dfa, telemetry)
 
-        # Yield the validated telemetry + live DFA state to the consumer
-        yield telemetry, current_phase
+        # Yield the validated telemetry + live DFA state to the consumer + quality margin
+        yield telemetry, current_phase, quality_margin
 
         # Simulated real-time tick (non-blocking)
         if tick_delay > 0:
@@ -193,7 +219,7 @@ async def stream_batch_data(
 if __name__ == "__main__":
     async def _smoke_test():
         count = 0
-        async for telemetry, phase in stream_batch_data("T001"):
+        async for telemetry, phase, q_margin in stream_batch_data("T001"):
             if count < 5 or telemetry.Phase != (list(PHASE_STRING_TO_ENUM.keys())[count // 10]):
                 print(
                     f"  t={telemetry.Time_Minutes:>4} min | "
