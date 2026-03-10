@@ -16,21 +16,19 @@ interface MetricsGridProps {
 }
 
 function MetricCard({ 
-  label, value, icon: Icon, unit, highlight = false, valueClass = "" 
+  label, value, icon: Icon, unit, valueClass = "" 
 }: { 
-  label: string; value: string | number; icon: any; unit?: string; highlight?: boolean; valueClass?: string 
+  label: string; value: string | number; icon: any; unit?: string; valueClass?: string 
 }) {
   return (
-    <div className={clsx(
-      "bg-[#0F1A2E] border border-slate-800 rounded-xl p-4 transition-all duration-300",
-      highlight ? "border-cyan-500/50 shadow-[0_0_15px_rgba(0,212,255,0.15)]" : "hover:border-slate-600"
-    )}>
-      <div className="flex items-center gap-2 mb-2 text-slate-400 text-xs uppercase tracking-[0.1em] font-medium">
-        <Icon size={14} className={highlight ? "text-cyan-400" : ""} />
-        {label}
+    <div className="bg-oracle-card/60 border border-oracle-border/40 rounded-xl p-3.5 transition-all duration-300 hover:border-oracle-border-light/50 group">
+      <div className="flex items-center gap-1.5 mb-1.5">
+        <Icon size={12} className="text-oracle-muted/40 group-hover:text-accent-teal/60 transition-colors" />
+        <span className="font-mono text-[9px] text-oracle-muted/50 uppercase tracking-[0.12em]">{label}</span>
       </div>
-      <div className={clsx("font-mono font-bold text-2xl truncate", valueClass || "text-slate-100")}>
-        {value} {unit && <span className="text-sm text-slate-500 font-sans ml-1">{unit}</span>}
+      <div className={clsx("font-mono font-bold text-xl truncate", valueClass || "text-oracle-text")}>
+        {value}
+        {unit && <span className="text-[11px] text-oracle-muted/30 font-body ml-1">{unit}</span>}
       </div>
     </div>
   );
@@ -41,32 +39,20 @@ export function MetricsGrid({ telemetry, bmuDistance, qualityMargin }: MetricsGr
 
   const t = telemetry;
   const pvr = t.Power_Consumption_kW / (t.Vibration_mm_s + 0.001);
-  const pvrHigh = pvr > 15.0;
-  const qmHigh = qualityMargin >= 5.0;
 
   return (
-    <div className="grid grid-cols-4 gap-4 mb-4">
+    <div className="grid grid-cols-4 gap-3 mb-4">
       <MetricCard label="Temperature" value={t.Temperature_C.toFixed(1)} unit="°C" icon={Thermometer} />
       <MetricCard label="Pressure" value={t.Pressure_Bar.toFixed(2)} unit="bar" icon={Gauge} />
-      <MetricCard label="Power" value={t.Power_Consumption_kW.toFixed(3)} unit="kW" icon={Zap} valueClass="text-cyan-400" highlight />
+      <MetricCard label="Power Draw" value={t.Power_Consumption_kW.toFixed(2)} unit="kW" icon={Zap} valueClass="text-accent-teal" />
       <MetricCard label="Motor Speed" value={t.Motor_Speed_RPM} unit="RPM" icon={Settings} />
       
       <MetricCard label="Vibration" value={t.Vibration_mm_s.toFixed(3)} unit="mm/s" icon={Activity} />
       <MetricCard label="BMU Distance" value={bmuDistance.toFixed(3)} icon={Target} />
-      <MetricCard 
-        label="PVR Index" 
-        value={pvr.toFixed(1)} 
-        icon={AlignCenterVertical} 
-        valueClass={pvrHigh ? "text-amber-400" : "text-slate-100"}
-        highlight={pvrHigh}
-      />
-      <MetricCard 
-        label="Excess Quality Margin" 
-        value={`+${qualityMargin.toFixed(1)}`}
-        unit="%"
-        icon={ShieldCheck} 
-        valueClass={qmHigh ? "text-green-400 drop-shadow-[0_0_8px_rgba(74,222,128,0.8)]" : "text-slate-100"}
-      />
+      <MetricCard label="PVR Index" value={pvr.toFixed(1)} icon={AlignCenterVertical}
+        valueClass={pvr > 15.0 ? "text-accent-gold" : "text-oracle-text"} />
+      <MetricCard label="Quality Margin" value={`+${qualityMargin.toFixed(1)}`} unit="%" icon={ShieldCheck}
+        valueClass="text-accent-emerald" />
     </div>
   );
 }

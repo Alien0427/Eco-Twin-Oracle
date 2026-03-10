@@ -11,24 +11,28 @@ interface SidebarProps {
 
 export function Sidebar({ batchId, setBatchId, isStreaming, onStart, onStop, stats }: SidebarProps) {
   return (
-    <div className="w-80 h-screen glass-panel rounded-none border-y-0 border-l-0 border-slate-700/50 flex flex-col pt-6 bg-slate-900 shadow-[2px_0_15px_rgba(0,0,0,0.5)] z-20 overflow-y-auto shrink-0">
-      <div className="px-6 pb-6 border-b border-slate-800">
-        <h1 className="text-2xl font-bold bg-gradient-to-r from-cyan-400 to-green-400 bg-clip-text text-transparent flex items-center gap-2">
-          <Terminal className="text-cyan-400" /> ECO-TWIN ORACLE
+    <div className="w-72 h-screen flex flex-col pt-5 bg-oracle-base border-r border-oracle-border/50 shadow-[2px_0_20px_rgba(0,0,0,0.4)] z-20 overflow-y-auto shrink-0">
+      
+      {/* ── Brand ─── */}
+      <div className="px-5 pb-5 border-b border-oracle-border/40">
+        <h1 className="font-display font-bold text-xl tracking-tight text-white flex items-center gap-2">
+          <Terminal size={18} className="text-accent-teal" />
+          <span className="text-gradient-brand">Eco-Twin Oracle</span>
         </h1>
-        <p className="text-xs text-slate-400 mt-1 uppercase tracking-wider font-semibold">AVEVA Hackathon · Track B</p>
+        <p className="font-mono text-[10px] text-oracle-muted/50 mt-1 uppercase tracking-[0.15em]">AVEVA Hackathon · Track B</p>
       </div>
 
-      <div className="p-6 space-y-6 flex-1">
-        <div className="space-y-3">
-          <label className="text-xs text-slate-400 font-semibold uppercase tracking-wider flex items-center gap-2">
-            <Database size={14} /> Select Batch ID
+      <div className="p-5 space-y-5 flex-1">
+        {/* ── Batch Selector ─── */}
+        <div className="space-y-2">
+          <label className="font-mono text-[10px] text-oracle-muted uppercase tracking-[0.15em] flex items-center gap-1.5">
+            <Database size={12} /> Batch ID
           </label>
           <select 
             value={batchId}
             onChange={(e) => setBatchId(e.target.value)}
             disabled={isStreaming}
-            className="w-full bg-slate-950 border border-slate-700 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 disabled:opacity-50 transition-colors"
+            className="w-full bg-oracle-deep border border-oracle-border rounded-lg px-3 py-2 text-sm font-mono text-oracle-text focus:outline-none focus:border-accent-teal/50 focus:ring-1 focus:ring-accent-teal/20 disabled:opacity-40 transition-all"
           >
             {Array.from({ length: 61 }).map((_, i) => {
               const id = `T${String(i + 1).padStart(3, '0')}`;
@@ -37,58 +41,61 @@ export function Sidebar({ batchId, setBatchId, isStreaming, onStart, onStop, sta
           </select>
         </div>
 
-        <div className="space-y-3">
+        {/* ── Controls ─── */}
+        <div className="space-y-2">
           <button 
             onClick={onStart}
             disabled={isStreaming}
-            className="w-full bg-slate-800 hover:bg-slate-700 hover:border-green-400/50 border border-slate-700 text-slate-200 py-3 rounded-lg font-medium transition-all duration-300 disabled:opacity-50 disabled:hover:border-slate-700 hover:shadow-[0_0_15px_rgba(34,197,94,0.2)] flex justify-center items-center gap-2"
+            className="w-full py-2.5 rounded-lg font-display font-semibold text-xs uppercase tracking-[0.1em] transition-all duration-300 border cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed bg-accent-teal/[0.08] border-accent-teal/25 text-accent-teal hover:bg-accent-teal/[0.15] hover:border-accent-teal/50 hover:shadow-[0_0_20px_-4px_rgba(45,212,168,0.25)] flex justify-center items-center gap-2"
           >
-            <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
+            <span className="w-1.5 h-1.5 rounded-full bg-accent-teal animate-pulse" />
             Start Simulation
           </button>
           
           <button 
             onClick={onStop}
             disabled={!isStreaming}
-            className="w-full bg-slate-800 hover:bg-slate-700 hover:border-red-400/50 border border-slate-700 text-slate-200 py-3 rounded-lg font-medium transition-all duration-300 disabled:opacity-50 disabled:hover:border-slate-700 hover:shadow-[0_0_15px_rgba(239,68,68,0.2)] flex justify-center items-center gap-2"
+            className="w-full py-2.5 rounded-lg font-display font-semibold text-xs uppercase tracking-[0.1em] transition-all duration-300 border cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed bg-oracle-surface border-oracle-border text-oracle-muted hover:bg-accent-coral/[0.08] hover:border-accent-coral/30 hover:text-accent-coral flex justify-center items-center gap-2"
           >
-            <span className="w-2 h-2 rounded-full bg-red-500"></span>
+            <span className="w-1.5 h-1.5 rounded-full bg-accent-coral/60" />
             Stop / Reset
           </button>
         </div>
 
-        <div className="pt-4 border-t border-slate-800">
-          <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-4">Session Stats</h2>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="bg-slate-950 border border-slate-800 rounded-lg p-3 text-center">
-              <div className="text-xl font-bold font-mono text-cyan-400">{stats.rows}</div>
-              <div className="text-[10px] text-slate-500 uppercase mt-1">Rows Processed</div>
+        {/* ── Stats ─── */}
+        <div className="pt-4 border-t border-oracle-border/30">
+          <h2 className="font-mono text-[10px] text-oracle-muted/50 uppercase tracking-[0.15em] mb-3">Session</h2>
+          <div className="grid grid-cols-2 gap-2">
+            <div className="bg-oracle-deep border border-oracle-border/40 rounded-lg p-2.5 text-center">
+              <div className="text-lg font-mono font-bold text-accent-teal">{stats.rows}</div>
+              <div className="font-mono text-[9px] text-oracle-muted/40 uppercase mt-0.5">Rows</div>
             </div>
-            <div className="bg-slate-950 border border-slate-800 rounded-lg p-3 text-center">
-              <div className="text-xl font-bold font-mono text-amber-400">{stats.alerts}</div>
-              <div className="text-[10px] text-slate-500 uppercase mt-1">Alerts</div>
+            <div className="bg-oracle-deep border border-oracle-border/40 rounded-lg p-2.5 text-center">
+              <div className="text-lg font-mono font-bold text-accent-gold">{stats.alerts}</div>
+              <div className="font-mono text-[9px] text-oracle-muted/40 uppercase mt-0.5">Alerts</div>
             </div>
           </div>
         </div>
 
-        <details className="mt-4 group border border-slate-700/50 rounded-lg bg-slate-900/50">
-          <summary className="flex items-center cursor-pointer p-4 select-none list-none text-sm font-semibold text-slate-300 hover:text-cyan-400 transition-colors">
-            <Server size={16} className="mr-2 text-cyan-500" />
-            Enterprise Architecture & Compliance
-            <span className="ml-auto transition group-open:rotate-180">▾</span>
+        {/* ── Compliance ─── */}
+        <details className="group border border-oracle-border/30 rounded-lg bg-oracle-surface/30 transition-colors hover:border-oracle-border/50">
+          <summary className="flex items-center cursor-pointer p-3 select-none list-none text-xs font-display font-medium text-oracle-muted hover:text-accent-teal transition-colors">
+            <Server size={14} className="mr-2 text-accent-teal/50" />
+            Enterprise Architecture
+            <span className="ml-auto transition-transform duration-200 group-open:rotate-180 text-oracle-muted/30">▾</span>
           </summary>
-          <div className="p-4 pt-0 text-xs text-slate-400 space-y-4 leading-relaxed">
+          <div className="p-3 pt-0 text-[11px] font-body text-oracle-muted/60 space-y-3 leading-relaxed">
             <div>
-              <b className="text-cyan-400 block mb-1">1. USP Regulatory Baseline:</b>
-              Excess Quality Margin is strictly calculated against <b>USP Acceptance Criteria (Q = 85.0%)</b> for immediate-release solid dosage forms. No arbitrary thresholds.
+              <b className="text-accent-teal/70 text-[10px] font-display uppercase tracking-wider">USP Regulatory Baseline</b>
+              <p className="mt-0.5">Quality Margin calculated against <span className="font-mono text-oracle-text">Q = 85.0%</span> acceptance criteria.</p>
             </div>
             <div>
-              <b className="text-cyan-400 block mb-1">2. Production Ingestion:</b>
-              Streaming via simulated WebSockets for demo purposes. Production-ready <code className="bg-slate-800 px-1 py-0.5 rounded text-slate-300">opc_ua_mqtt_gateway.py</code> adapter is configured for live PLC integration.
+              <b className="text-accent-teal/70 text-[10px] font-display uppercase tracking-wider">Production Ingestion</b>
+              <p className="mt-0.5">WebSocket simulation. OPC-UA gateway adapter ready for live PLC.</p>
             </div>
             <div>
-              <b className="text-cyan-400 block mb-1">3. Edge-Cloud Hybrid:</b>
-              Inference runs on local Edge. Kohonen SOM weights are updated asynchronously via Cloud-Sync to prevent catastrophic forgetting.
+              <b className="text-accent-teal/70 text-[10px] font-display uppercase tracking-wider">Edge-Cloud Hybrid</b>
+              <p className="mt-0.5">Local edge inference. SOM weights updated via Cloud-Sync.</p>
             </div>
           </div>
         </details>

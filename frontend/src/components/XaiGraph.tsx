@@ -20,92 +20,61 @@ export function XaiGraph({ xaiData }: XaiGraphProps) {
   useEffect(() => {
     if (!xaiData?.kg_nodes?.length) return;
 
-    // We assume a 3-node causal structure mapping for Hackathon track
     const s = xaiData.kg_nodes[0]?.source || "Symptom";
     const r = xaiData.kg_nodes[0]?.target || "Root Cause";
     const a = xaiData.kg_nodes[1]?.target || "Action";
-
     const isNormal = r === "Normal";
 
-    const baseNodeStyle = {
-      padding: '10px',
-      borderRadius: '8px',
-      color: '#fff',
-      fontWeight: 'bold',
-      fontSize: '12px',
-      border: '1px solid #334155',
-      textAlign: 'center' as const,
-      boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)',
+    const base = {
+      padding: '10px 14px', borderRadius: '10px', color: '#fff',
+      fontWeight: '600', fontSize: '11px', fontFamily: 'Space Grotesk, sans-serif',
+      letterSpacing: '0.05em', textAlign: 'center' as const,
     };
 
     setNodes([
-      {
-        id: '1',
-        position: { x: 50, y: 100 },
-        data: { label: s },
-        style: { ...baseNodeStyle, background: '#b45309', border: '1px solid #f59e0b' }, // Amber
-      },
-      {
-        id: '2',
-        position: { x: 250, y: 100 },
-        data: { label: r },
-        style: { 
-          ...baseNodeStyle, 
-          background: isNormal ? '#166534' : '#991b1b', // Green or Red
-          border: isNormal ? '1px solid #22c55e' : '1px solid #ef4444' 
-        },
-      },
-      {
-        id: '3',
-        position: { x: 450, y: 100 },
-        data: { label: a },
-        style: { ...baseNodeStyle, background: '#0e7490', border: '1px solid #06b6d4' }, // Cyan
-      },
+      { id: '1', position: { x: 50, y: 100 }, data: { label: s },
+        style: { ...base, background: '#92400e', border: '1px solid #E8B931' } },
+      { id: '2', position: { x: 250, y: 100 }, data: { label: r },
+        style: { ...base, 
+          background: isNormal ? '#064e3b' : '#7f1d1d', 
+          border: isNormal ? '1px solid #10B981' : '1px solid #F06449' } },
+      { id: '3', position: { x: 450, y: 100 }, data: { label: a },
+        style: { ...base, background: '#134e4a', border: '1px solid #2DD4A8' } },
     ]);
 
+    const lineColor = isNormal ? '#10B981' : '#F06449';
     setEdges([
-      {
-        id: 'e1-2',
-        source: '1',
-        target: '2',
-        animated: true,
-        style: { stroke: isNormal ? '#22c55e' : '#ef4444', strokeWidth: 2 },
-        markerEnd: { type: MarkerType.ArrowClosed, color: isNormal ? '#22c55e' : '#ef4444' }
-      },
-      {
-        id: 'e2-3',
-        source: '2',
-        target: '3',
-        animated: true,
-        style: { stroke: '#06b6d4', strokeWidth: 2 },
-        markerEnd: { type: MarkerType.ArrowClosed, color: '#06b6d4' }
-      },
+      { id: 'e1-2', source: '1', target: '2', animated: true,
+        style: { stroke: lineColor, strokeWidth: 2 },
+        markerEnd: { type: MarkerType.ArrowClosed, color: lineColor } },
+      { id: 'e2-3', source: '2', target: '3', animated: true,
+        style: { stroke: '#2DD4A8', strokeWidth: 2 },
+        markerEnd: { type: MarkerType.ArrowClosed, color: '#2DD4A8' } },
     ]);
   }, [xaiData]);
 
   return (
     <div className="glass-panel p-4 h-80 flex flex-col">
-      <div className="flex justify-between items-center mb-4">
-        <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-widest text-cyan-400/80">
-          Visual 3 · XAI Causal Knowledge Graph
+      <div className="flex justify-between items-center mb-3">
+        <h3 className="font-mono text-[10px] text-oracle-muted uppercase tracking-[0.15em]">
+          XAI Causal Knowledge Graph
         </h3>
-        <BrainCircuit size={16} className="text-cyan-400" />
+        <BrainCircuit size={14} className="text-accent-teal/40" />
       </div>
 
       {xaiData ? (
-        <div className="bg-slate-900/50 border border-slate-800 rounded-lg p-3 text-sm text-slate-300 mb-4 font-mono leading-relaxed shadow-inner">
-          <span className="text-cyan-400 font-bold tracking-widest">XAI ENGINE: </span> 
-          {xaiData.explanation}
+        <div className="bg-oracle-deep/50 border border-oracle-border/30 rounded-lg p-2.5 text-[11px] text-oracle-text/70 mb-3 font-mono leading-relaxed">
+          <span className="text-accent-teal font-bold tracking-wider">XAI: </span>{xaiData.explanation}
         </div>
       ) : (
-        <div className="bg-slate-900/50 border border-slate-800 rounded-lg p-3 text-sm text-slate-500 mb-4 font-mono shadow-inner animate-pulse">
-          AWAITING XAI CAUSAL INITIATION...
+        <div className="bg-oracle-deep/50 border border-oracle-border/30 rounded-lg p-2.5 text-[11px] text-oracle-muted/30 mb-3 font-mono animate-pulse">
+          AWAITING CAUSAL INITIATION...
         </div>
       )}
 
-      <div className="flex-1 w-full bg-[#0A0F1E] border border-slate-800 rounded-lg overflow-hidden relative">
+      <div className="flex-1 w-full bg-oracle-deep/30 border border-oracle-border/20 rounded-lg overflow-hidden">
         <ReactFlow nodes={nodes} edges={edges} fitView minZoom={0.5} maxZoom={2} proOptions={{ hideAttribution: true }}>
-          <Background color="#1e293b" gap={16} size={1} />
+          <Background color="#1A2D52" gap={20} size={1} />
         </ReactFlow>
       </div>
     </div>

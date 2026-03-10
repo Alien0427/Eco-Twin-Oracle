@@ -15,19 +15,19 @@ interface PowerChartProps {
 export function PowerChart({ data }: PowerChartProps) {
   return (
     <div className="glass-panel p-4 h-80 flex flex-col">
-      <div className="flex justify-between items-center mb-4">
-        <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-widest text-cyan-400/80">
-          Visual 1 · Golden Signature Power Trace
+      <div className="flex justify-between items-center mb-3">
+        <h3 className="font-mono text-[10px] text-oracle-muted uppercase tracking-[0.15em]">
+          Golden Signature Power Trace
         </h3>
-        <div className="flex items-center gap-4 text-[10px] uppercase font-mono text-slate-400">
-          <span className="flex items-center gap-1">
-            <div className="w-3 h-1 bg-cyan-500 border-dashed"></div> Golden Target
+        <div className="flex items-center gap-4 font-mono text-[9px] uppercase text-oracle-muted/40 tracking-wider">
+          <span className="flex items-center gap-1.5">
+            <div className="w-4 h-[2px] bg-accent-ice rounded-full opacity-60" /> Target
           </span>
-          <span className="flex items-center gap-1">
-            <div className="w-3 h-1 bg-green-500 shadow-[0_0_8px_#22c55e]"></div> Live Draw
+          <span className="flex items-center gap-1.5">
+            <div className="w-4 h-[2px] bg-accent-teal rounded-full shadow-[0_0_6px_rgba(45,212,168,0.5)]" /> Live
           </span>
-          <span className="flex items-center gap-1">
-            <div className="w-3 h-0.5 bg-red-500 border-dashed"></div> Phantom Threshold
+          <span className="flex items-center gap-1.5">
+            <div className="w-4 h-[1px] bg-accent-coral/60 rounded-full" /> Phantom
           </span>
         </div>
       </div>
@@ -35,47 +35,28 @@ export function PowerChart({ data }: PowerChartProps) {
       <div className="flex-1 w-full min-h-0">
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={data} margin={{ top: 5, right: 10, left: -20, bottom: 5 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
+            <CartesianGrid strokeDasharray="3 3" stroke="#1A2D52" strokeOpacity={0.4} vertical={false} />
             <XAxis 
-              dataKey="time" 
-              stroke="#64748b" 
-              tick={{ fontSize: 10, fill: '#64748b' }} 
+              dataKey="time" stroke="#1A2D52"
+              tick={{ fontSize: 9, fill: '#5B7BA5', fontFamily: 'IBM Plex Mono' }} 
               tickFormatter={(val) => val.toFixed(0)} 
             />
             <YAxis 
-              stroke="#64748b" 
-              domain={[0, 45]} 
-              tick={{ fontSize: 10, fill: '#64748b' }} 
+              stroke="#1A2D52" domain={[0, 45]}
+              tick={{ fontSize: 9, fill: '#5B7BA5', fontFamily: 'IBM Plex Mono' }} 
             />
             <Tooltip 
-              contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #334155', borderRadius: '8px', fontSize: '12px' }}
-              itemStyle={{ fontFamily: 'monospace' }}
+              contentStyle={{ 
+                backgroundColor: '#0F1A33', border: '1px solid #1A2D52', borderRadius: '8px', 
+                fontSize: '11px', fontFamily: 'IBM Plex Mono', color: '#C8DAF0'
+              }}
             />
-            
-            <ReferenceLine y={2.5} stroke="#ef4444" strokeDasharray="4 4" strokeWidth={1} />
-            
-            {/* Ghost KW (Golden Target) */}
-            <Line 
-              type="monotone" 
-              dataKey="ghost_kw" 
-              stroke="#06b6d4" 
-              strokeWidth={1.5} 
-              strokeDasharray="5 5"
-              dot={false}
-              isAnimationActive={false}
-            />
-            
-            {/* Actual KW (Live Draw) */}
-            <Line 
-              type="monotone" 
-              dataKey="actual_kw" 
-              stroke="#22c55e" 
-              strokeWidth={2}
-              dot={false}
-              activeDot={{ r: 4, fill: '#22c55e', stroke: '#0f172a', strokeWidth: 2 }}
-              isAnimationActive={false}
-              style={{ filter: 'drop-shadow(0px 0px 4px rgba(34, 197, 94, 0.5))' }}
-            />
+            <ReferenceLine y={2.5} stroke="#F06449" strokeDasharray="6 3" strokeWidth={1} strokeOpacity={0.5} />
+            <Line type="monotone" dataKey="ghost_kw" stroke="#7DD3FC" strokeWidth={1.2} 
+              strokeDasharray="6 4" dot={false} isAnimationActive={false} strokeOpacity={0.5} />
+            <Line type="monotone" dataKey="actual_kw" stroke="#2DD4A8" strokeWidth={2}
+              dot={false} isAnimationActive={false}
+              activeDot={{ r: 3, fill: '#2DD4A8', stroke: '#0A1128', strokeWidth: 2 }} />
           </LineChart>
         </ResponsiveContainer>
       </div>

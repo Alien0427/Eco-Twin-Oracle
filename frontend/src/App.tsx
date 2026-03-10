@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import useWebSocket, { ReadyState } from 'react-use-websocket';
+import { LandingPage } from './components/LandingPage';
 import { Sidebar } from './components/Sidebar';
 import { PhaseStepper } from './components/PhaseStepper';
 import { MetricsGrid } from './components/MetricsGrid';
@@ -9,6 +10,7 @@ import { XaiGraph } from './components/XaiGraph';
 import { LedgerAlert } from './components/LedgerAlert';
 
 export default function App() {
+  const [isSystemActive, setIsSystemActive] = useState(false);
   const [batchId, setBatchId] = useState('T060');
   const [isStreaming, setIsStreaming] = useState(false);
   const [shouldConnect, setShouldConnect] = useState(false);
@@ -100,8 +102,12 @@ export default function App() {
     }
   }, [readyState]);
 
+  if (!isSystemActive) {
+    return <LandingPage onEnter={() => setIsSystemActive(true)} />;
+  }
+
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-[#050811] text-slate-100">
+    <div className="flex h-screen w-screen overflow-hidden bg-oracle-deep text-oracle-text">
       <Sidebar 
         batchId={batchId}
         setBatchId={setBatchId}
