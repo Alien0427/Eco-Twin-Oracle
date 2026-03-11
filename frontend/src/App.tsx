@@ -26,6 +26,8 @@ export default function App() {
   const [bmuHistory, setBmuHistory] = useState<[number, number][]>([]);
   const [stats, setStats] = useState({ rows: 0, alerts: 0 });
   const [ledgerStatus, setLedgerStatus] = useState(null);
+  const [batchSummary, setBatchSummary] = useState<any>(null);
+  const [anomalyHistory, setAnomalyHistory] = useState<Record<string, number>>({});
 
   const socketUrl = shouldConnect ? `ws://localhost:8000/ws/live-batch/${batchId}` : null;
   
@@ -39,6 +41,8 @@ export default function App() {
     setBmuHistory([]);
     setStats({ rows: 0, alerts: 0 });
     setLedgerStatus(null);
+    setBatchSummary(null);
+    setAnomalyHistory({});
     setTelemetry(null);
     setPrescription(null);
     setXaiData(null);
@@ -59,10 +63,11 @@ export default function App() {
         setIsStreaming(false);
         setShouldConnect(false);
         setLedgerStatus(data.ledger_status);
+        setBatchSummary(data.batch_summary || null);
         return;
       }
       
-      if (data.event === "telemetry" || data.event === "phantom_energy") {
+      if (data.event === "telemetry" || data.event === "phantom_energy" || data.event === "anomaly_detected" || data.event === "process_alert") {
         const t = data.telemetry;
         const p = data.prescription;
         
@@ -87,13 +92,23 @@ export default function App() {
           ghost_kw: t.Power_Consumption_kW + recKw
         }]);
         
+        // Count alerts from ALL sources: phantom, anomaly, PVR, arbitrage
+        const alertCount = (data.has_phantom ? 1 : 0)
+          + (data.has_anomaly ? 1 : 0)
+          + (data.has_pvr_alert ? 1 : 0)
+          + (data.has_arbitrage_alert ? 1 : 0);
+        
         setStats(prev => ({
           rows: prev.rows + 1,
-          alerts: prev.alerts + (data.event === "phantom_energy" ? 1 : 0)
+          alerts: prev.alerts + alertCount
         }));
+        
+        // Track anomaly class distribution
+        const cls = p?.anomaly_class || 'Normal';
+        setAnomalyHistory(prev => ({ ...prev, [cls]: (prev[cls] || 0) + 1 }));
       }
     }
-  }, [lastMessage, setTimeSeries, setBmuHistory, setStats, setTelemetry, setDfaState, setPrescription, setXaiData, setQualityMargin, setIsStreaming, setShouldConnect, setLedgerStatus]);
+  }, [lastMessage, setTimeSeries, setBmuHistory, setStats, setTelemetry, setDfaState, setPrescription, setXaiData, setQualityMargin, setIsStreaming, setShouldConnect, setLedgerStatus, setBatchSummary, setAnomalyHistory]);
 
   useEffect(() => {
     if (readyState === ReadyState.CLOSED) {
@@ -126,14 +141,14 @@ export default function App() {
             <PowerChart data={timeSeries} />
           </div>
           <div className="h-full flex flex-col">
-            <SomHeatmap bmuHistory={bmuHistory} anomalyClass={prescription?.anomaly_class || ''} />
+            <SomHeatmap bmuHistory={bmuHistory} anomalyClass={prescription?.anomaly_class || ''} anomalyHistory={anomalyHistory} />
           </div>
           <div className="h-full flex flex-col xl:col-span-2 2xl:col-span-1">
             <XaiGraph xaiData={xaiData} />
           </div>
         </div>
         
-        {ledgerStatus && <LedgerAlert status={ledgerStatus} />}
+        {ledgerStatus && <LedgerAlert status={ledgerStatus} summary={batchSummary} />}
       </div>
     </div>
   );

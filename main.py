@@ -168,10 +168,47 @@ def _build_dummy_training_data(n_samples: int = 50) -> tuple[np.ndarray, np.ndar
     return X, y
 
 
+# Top-tier batch IDs (Dissolution_Rate >= 95%) used to build the Golden Signature.
+# This ensures the SOM learns ONLY from the best-performing batches — deviations
+# from this optimum are what create meaningful anomaly signals for weaker batches.
+GOLDEN_BATCH_IDS: set[str] = set()  # Populated at startup from production data
+
+
+def _identify_golden_batches() -> set[str]:
+    """
+    Read the production dataset to identify top-tier batches (Dissolution_Rate >= 95%).
+    These batches form the Golden Signature training corpus.
+    """
+    import pandas as pd
+    import os
+
+    prod_path = "_h_batch_production_data.xlsx"
+    if not os.path.exists(prod_path):
+        logger.warning("Production data not found. Using all batches for training.")
+        return set()
+
+    try:
+        prod_df = pd.read_excel(prod_path, sheet_name="BatchData")
+        top_batches = prod_df[prod_df["Dissolution_Rate"] >= 95.0]["Batch_ID"].tolist()
+        logger.info(
+            "Golden Batch Selection: %d of %d batches have Dissolution_Rate >= 95%% → %s",
+            len(top_batches), len(prod_df), top_batches,
+        )
+        return set(top_batches)
+    except Exception as exc:
+        logger.warning("Failed to read production data: %s. Using all batches.", exc)
+        return set()
+
+
 async def _train_from_excel() -> tuple[np.ndarray, np.ndarray]:
     """
-    Collect multivariate feature vectors for ALL batches in the Excel workbook
-    to build a representative Golden Signature training corpus.
+    Collect multivariate feature vectors ONLY from top-performing batches
+    (Dissolution_Rate >= 95%) to build a Golden Signature training corpus.
+
+    This is the critical fix: training on ALL batches (including bad ones)
+    creates an 'average' signature, not a 'golden' one. By training only on
+    top-tier batches, bad batches will show high BMU distance (far from golden)
+    and good batches will show low BMU distance (close to golden).
 
     Runs in a threadpool executor so the async event loop stays unblocked.
     """
@@ -183,25 +220,56 @@ async def _train_from_excel() -> tuple[np.ndarray, np.ndarray]:
         return _build_dummy_training_data()
 
     def _read_excel_sync() -> tuple[np.ndarray, np.ndarray]:
+        global GOLDEN_BATCH_IDS
+        GOLDEN_BATCH_IDS = _identify_golden_batches()
+        
         xl = pd.ExcelFile(EXCEL_PATH)
-        all_rows, all_labels = [], []
+        golden_rows, all_rows = [], []
+        all_labels = []
+        golden_count, total_count = 0, 0
+        
         for sheet in xl.sheet_names:
             try:
                 df = xl.parse(sheet).sort_values("Time_Minutes")
+                batch_id = str(df["Batch_ID"].iloc[0]).strip()
+                is_golden = batch_id in GOLDEN_BATCH_IDS or len(GOLDEN_BATCH_IDS) == 0
+                
                 for _, row in df.iterrows():
                     vec = [
                         float(row.get(col, 0.0))
                         for col in FEATURE_COLUMNS
                     ]
                     all_rows.append(vec)
-                    all_labels.append("Normal")  # Baseline label — refined by LVQ splits
+                    all_labels.append("Normal")
+                    
+                    if is_golden:
+                        golden_rows.append(vec)
+                        golden_count += 1
+                    
+                total_count += len(df)
             except Exception as exc:
                 logger.debug("Skipping sheet '%s': %s", sheet, exc)
-        return np.array(all_rows, dtype=np.float64), np.array(all_labels)
+        
+        # Use golden rows for SOM, all rows for LVQ
+        som_data = np.array(golden_rows, dtype=np.float64) if golden_rows else np.array(all_rows, dtype=np.float64)
+        lvq_data = np.array(all_rows, dtype=np.float64)
+        
+        logger.info(
+            "SOM training: %d golden rows from %d top batches. LVQ training: %d total rows.",
+            len(som_data), len(GOLDEN_BATCH_IDS), len(lvq_data),
+        )
+        return som_data, lvq_data
 
-    X, y = await asyncio.to_thread(_read_excel_sync)
-    logger.info("Training corpus loaded: %d rows from %d sheets.", len(X), len(pd.ExcelFile(EXCEL_PATH).sheet_names))
-    return X, y
+    som_X, lvq_X = await asyncio.to_thread(_read_excel_sync)
+    logger.info("Training corpus loaded: SOM=%d golden rows, LVQ=%d total rows.", len(som_X), len(lvq_X))
+    # Return SOM data as X and LVQ data packed as labels (we'll unpack in lifespan)
+    # Store LVQ data on a module-level variable for the lifespan to use
+    global _lvq_training_data
+    _lvq_training_data = lvq_X
+    return som_X, np.array(["Normal"] * len(som_X))
+
+# Module-level storage for LVQ training data (populated by _train_from_excel)
+_lvq_training_data: np.ndarray | None = None
 
 
 def _build_lvq_labels(X: np.ndarray, rng_seed: int = 42) -> np.ndarray:
@@ -209,13 +277,19 @@ def _build_lvq_labels(X: np.ndarray, rng_seed: int = 42) -> np.ndarray:
     Heuristically label the training data for LVQ using physical rules so the
     classifier has multi-class signal even before operator feedback is collected.
 
-    Rules are deliberately conservative and grounded in the domain:
-      - High vibration (> 0.4 mm/s)             → "Vibration Fatigue"
-      - Low flow + high power (RPM > 0, LPM < 2) → "Flow Stagnation"
-      - Temperature spike (> 75 °C)              → "Thermal Drift"
-      - Pressure spike (> 4.5 bar)               → "Pressure Surge"
-      - High vibration + high kW                 → "Mechanical Friction"
-      - Everything else                           → "Normal"
+    Thresholds are calibrated from actual dataset analysis:
+      - Avg vibration ~3.0 mm/s, range 0.05-11+ mm/s
+      - Avg power ~23 kW, range 0.5-70 kW  
+      - Avg temp ~35°C, range 20-65°C
+      - Avg pressure ~2.5 bar, range 0.5-5+ bar
+
+    Rules (calibrated to real data distribution):
+      - Vibration > 5.0 mm/s + Power > 35 kW   → "Mechanical Friction"
+      - Vibration > 5.0 mm/s                    → "Vibration Fatigue"
+      - Temperature spike (> 55 °C)             → "Thermal Drift"
+      - Pressure spike (> 4.0 bar)              → "Pressure Surge"
+      - RPM > 0 and Flow < 2 LPM               → "Flow Stagnation"
+      - Everything else                          → "Normal"
     """
     # Column index shortcuts (matches FEATURE_COLUMNS order)
     # [Temp, Pressure, Humidity, RPM, Compression, Flow, Power, Vibration]
@@ -224,13 +298,13 @@ def _build_lvq_labels(X: np.ndarray, rng_seed: int = 42) -> np.ndarray:
 
     labels = []
     for row in X:
-        if row[VIB_IDX] > 0.4 and row[POWER_IDX] > 5.0:
+        if row[VIB_IDX] > 5.0 and row[POWER_IDX] > 35.0:
             labels.append("Mechanical Friction")
-        elif row[VIB_IDX] > 0.4:
+        elif row[VIB_IDX] > 5.0:
             labels.append("Vibration Fatigue")
-        elif row[TEMP_IDX] > 75.0:
+        elif row[TEMP_IDX] > 55.0:
             labels.append("Thermal Drift")
-        elif row[PRESS_IDX] > 4.5:
+        elif row[PRESS_IDX] > 4.0:
             labels.append("Pressure Surge")
         elif row[RPM_IDX] > 0 and row[FLOW_IDX] < 2.0:
             labels.append("Flow Stagnation")
@@ -256,21 +330,28 @@ async def lifespan(app: FastAPI):
     logger.info("=" * 60)
 
     # ── Load training data ─────────────────────────────────────────────────
-    X_train, _ = await _train_from_excel()
-    y_train = _build_lvq_labels(X_train)
+    # _train_from_excel now returns ONLY golden batch data for SOM
+    # and stores ALL batch data in _lvq_training_data for LVQ
+    X_som, _ = await _train_from_excel()
+    
+    # LVQ trains on ALL data (so it understands both normal and anomalous patterns)
+    X_lvq = _lvq_training_data if _lvq_training_data is not None else X_som
+    y_train = _build_lvq_labels(X_lvq)
 
     # ── Train SOM (Golden Signature topology) ──────────────────────────────
+    # SOM trains ONLY on top-tier batches → the "golden" operating region
     som = KohonenSOM(grid_h=10, grid_w=10, n_iterations=800, seed=42)
     t0 = time.monotonic()
 
-    await asyncio.to_thread(som.fit, X_train)
-    logger.info("KohonenSOM trained in %.2fs on %d samples (10×10 grid).", time.monotonic() - t0, len(X_train))
+    await asyncio.to_thread(som.fit, X_som)
+    logger.info("KohonenSOM trained in %.2fs on %d GOLDEN samples (10×10 grid).", time.monotonic() - t0, len(X_som))
 
     # ── Train LVQ (Anomaly Classifier) ────────────────────────────────────
+    # LVQ trains on ALL data so it sees the full spectrum of anomaly classes
     lvq = LVQClassifier(n_prototypes_per_class=3, learning_rate=0.05, n_epochs=400, seed=42)
     t0 = time.monotonic()
-    await asyncio.to_thread(lvq.fit, X_train, y_train)
-    logger.info("LVQClassifier trained in %.2fs. Classes: %s", time.monotonic() - t0, list(np.unique(y_train)))
+    await asyncio.to_thread(lvq.fit, X_lvq, y_train)
+    logger.info("LVQClassifier trained in %.2fs on %d samples. Classes: %s", time.monotonic() - t0, len(X_lvq), list(np.unique(y_train)))
 
     # ── Attach to app state ────────────────────────────────────────────────
     app.state.som = som
@@ -445,6 +526,11 @@ async def websocket_live_batch(websocket: WebSocket, batch_id: str):
     dfa = DFAStateMachine()  # Fresh DFA per batch lifecycle
 
     power_history: list[float] = []
+    bmu_distances: list[float] = []
+    anomaly_classes: list[str] = []
+    total_phantom = 0
+    total_pvr = 0
+    total_arbitrage = 0
 
     try:
         async for telemetry, current_phase, quality_margin in stream_batch_data(batch_id, tick_delay=0.0):
@@ -478,8 +564,30 @@ async def websocket_live_batch(websocket: WebSocket, batch_id: str):
             )
 
             # ── Build JSON envelope ───────────────────────────────────────
+            has_anomaly = prescription.anomaly_class != "Normal"
+            has_phantom = phantom_alert is not None
+            has_pvr = pvr_alert is not None
+            has_arbitrage = arbitrage_alert is not None
+            
+            # Track cumulative stats for batch summary
+            bmu_distances.append(prescription.bmu_distance)
+            anomaly_classes.append(prescription.anomaly_class)
+            if has_phantom: total_phantom += 1
+            if has_pvr: total_pvr += 1
+            if has_arbitrage: total_arbitrage += 1
+            
+            # Determine event type based on severity priority
+            if has_phantom:
+                event_type = "phantom_energy"
+            elif has_anomaly:
+                event_type = "anomaly_detected"
+            elif has_pvr or has_arbitrage:
+                event_type = "process_alert"
+            else:
+                event_type = "telemetry"
+            
             payload = {
-                "event": "phantom_energy" if phantom_alert else "telemetry",
+                "event": event_type,
                 "telemetry": telemetry.model_dump(),
                 "dfa_state": current_phase.name,
                 "prescription": prescription_resp.model_dump(),
@@ -491,6 +599,11 @@ async def websocket_live_batch(websocket: WebSocket, batch_id: str):
                 "arbitrage_alert": arbitrage_alert,
                 "xai_data": xai_data,
                 "quality_margin": quality_margin,
+                # Alert flags for frontend counting
+                "has_anomaly": has_anomaly,
+                "has_phantom": has_phantom,
+                "has_pvr_alert": has_pvr,
+                "has_arbitrage_alert": has_arbitrage,
                 "timestamp_ms": int(time.time() * 1000),
             }
 
@@ -506,10 +619,38 @@ async def websocket_live_batch(websocket: WebSocket, batch_id: str):
         # Run the upgraded strict evaluation
         ledger_result = evaluate_batch_performance(batch_id, avg_batch_power, max_batch_power)
         
+        # Build anomaly summary for the frontend
+        anomaly_count = sum(1 for c in anomaly_classes if c != "Normal")
+        class_counts = {}
+        for c in anomaly_classes:
+            class_counts[c] = class_counts.get(c, 0) + 1
+        # Find the dominant non-Normal class
+        non_normal = {k: v for k, v in class_counts.items() if k != "Normal"}
+        dominant_anomaly = max(non_normal, key=non_normal.get) if non_normal else "Normal"
+        
+        import numpy as np
+        avg_bmu = float(np.mean(bmu_distances)) if bmu_distances else 0.0
+        max_bmu = float(np.max(bmu_distances)) if bmu_distances else 0.0
+        
+        batch_summary = {
+            "total_rows": len(power_history),
+            "total_alerts": anomaly_count + total_phantom + total_pvr + total_arbitrage,
+            "anomaly_detections": anomaly_count,
+            "phantom_alerts": total_phantom,
+            "pvr_alerts": total_pvr,
+            "arbitrage_alerts": total_arbitrage,
+            "dominant_anomaly": dominant_anomaly,
+            "anomaly_class_counts": class_counts,
+            "avg_bmu_distance": round(avg_bmu, 4),
+            "max_bmu_distance": round(max_bmu, 4),
+            "normal_pct": round(class_counts.get("Normal", 0) / len(anomaly_classes) * 100, 1) if anomaly_classes else 0,
+        }
+        
         # Send payload
         await websocket.send_json({
             "event": "batch_complete",
-            "ledger_status": ledger_result
+            "ledger_status": ledger_result,
+            "batch_summary": batch_summary,
         })
         logger.info("[WS] Batch '%s' stream complete. Ledger Status: %s", batch_id, ledger_result["trigger_som_retraining"])
 
