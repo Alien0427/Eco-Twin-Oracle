@@ -35,6 +35,14 @@ test_results.txt
 batch_analysis.txt
 *.log
 
+# Debug output text files (keep requirements.txt)
+output.txt
+all_output.txt
+error.txt
+
+# PDF documents
+*.pdf
+
 # Type checking
 .pyre/
 .pyre_configuration

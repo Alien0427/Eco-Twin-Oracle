@@ -102,7 +102,7 @@ def _validate_row(row: pd.Series) -> BatchTelemetry:
         Compression_Force_kN=int(row["Compression_Force_kN"]),
         Flow_Rate_LPM=int(row["Flow_Rate_LPM"]),
         Power_Consumption_kW=float(row["Power_Consumption_kW"]),
-        Vibration_mm_s=float(row["Vibration_mm_s"]),
+        Vibration_mm_s=max(0.0, float(row["Vibration_mm_s"])),
     )
 
 
