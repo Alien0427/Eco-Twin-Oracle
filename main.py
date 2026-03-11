@@ -328,6 +328,11 @@ async def lifespan(app: FastAPI):
     logger.info("=" * 60)
     logger.info("  Eco-Twin Oracle — Initialising AI Engine")
     logger.info("=" * 60)
+    
+    # ── Auto-calibrate thresholds ──────────────────────────────────────────
+    import analytics_engine
+    await asyncio.to_thread(analytics_engine.auto_calibrate_thresholds)
+    logger.info(f"Thresholds Calibrated: AVG={analytics_engine.GOLDEN_AVG_POWER_THRESHOLD:.2f}kW, PEAK={analytics_engine.GOLDEN_PEAK_POWER_THRESHOLD:.2f}kW")
 
     # ── Load training data ─────────────────────────────────────────────────
     # _train_from_excel now returns ONLY golden batch data for SOM
