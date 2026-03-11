@@ -29,7 +29,11 @@ export default function App() {
   const [batchSummary, setBatchSummary] = useState<any>(null);
   const [anomalyHistory, setAnomalyHistory] = useState<Record<string, number>>({});
 
-  const socketUrl = shouldConnect ? `ws://localhost:8000/ws/live-batch/${batchId}` : null;
+  // Dynamic backend URL: uses env var in production, localhost for dev
+  const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000';
+  const wsProtocol = backendUrl.startsWith('https') ? 'wss' : 'ws';
+  const wsHost = backendUrl.replace(/^https?:\/\//, '');
+  const socketUrl = shouldConnect ? `${wsProtocol}://${wsHost}/ws/live-batch/${batchId}` : null;
   
   const { lastMessage, readyState } = useWebSocket(socketUrl, {
     shouldReconnect: () => false,
