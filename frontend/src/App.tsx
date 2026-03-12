@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import useWebSocket, { ReadyState } from 'react-use-websocket';
 import { Loader2 } from 'lucide-react';
 import { LandingPage } from './components/LandingPage';
@@ -29,6 +29,7 @@ export default function App() {
   const [ledgerStatus, setLedgerStatus] = useState(null);
   const [batchSummary, setBatchSummary] = useState<any>(null);
   const [anomalyHistory, setAnomalyHistory] = useState<Record<string, number>>({});
+  const wakeAbortRef = useRef<AbortController | null>(null);
 
   // Dynamic backend URL: uses env var in production, localhost for dev
   const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000';
@@ -40,7 +41,7 @@ export default function App() {
     shouldReconnect: () => false,
   });
 
-  const handleStart = () => {
+  const handleStart = async () => {
     // Reset state
     setTimeSeries([]);
     setBmuHistory([]);
@@ -51,11 +52,35 @@ export default function App() {
     setTelemetry(null);
     setPrescription(null);
     setXaiData(null);
+    // Mark as streaming immediately (disables Start button, shows waking-up state)
     setIsStreaming(true);
-    setShouldConnect(true);
+    setShouldConnect(false);
+
+    // Wake up the Render backend before opening WebSocket.
+    // Render free tier sleeps after inactivity; mobile browsers time out WebSocket
+    // connections in ~5-10s while Render can take ~50s to cold-start.
+    // An HTTP request waits patiently for the server to wake up.
+    const ctrl = new AbortController();
+    wakeAbortRef.current = ctrl;
+    try {
+      const tid = setTimeout(() => ctrl.abort(), 65000);
+      await fetch(`${backendUrl}/docs`, { mode: 'no-cors', signal: ctrl.signal });
+      clearTimeout(tid);
+    } catch (_) {
+      // Timed out or aborted — attempt WebSocket anyway
+    }
+    wakeAbortRef.current = null;
+
+    // If user hit Stop during wakeup, abort signal is set — don't open socket
+    if (!ctrl.signal.aborted) {
+      setShouldConnect(true);
+    }
   };
 
   const handleStop = () => {
+    // Cancel any in-progress wakeup HTTP request
+    wakeAbortRef.current?.abort();
+    wakeAbortRef.current = null;
     setIsStreaming(false);
     setShouldConnect(false);
   };
@@ -122,7 +147,9 @@ export default function App() {
     }
   }, [readyState]);
 
-  const isConnecting = readyState === ReadyState.CONNECTING;
+  // isWakingUp: HTTP ping in flight (Render cold-start); isConnecting: WS handshake
+  const isWakingUp = isStreaming && !shouldConnect;
+  const isConnecting = !isWakingUp && readyState === ReadyState.CONNECTING;
 
   if (!isSystemActive) {
     return <LandingPage onEnter={() => setIsSystemActive(true)} />;
@@ -150,15 +177,16 @@ export default function App() {
         </select>
         <button
           onClick={isStreaming ? handleStop : handleStart}
-          disabled={isConnecting}
-          className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-display font-semibold uppercase tracking-wider border transition-all disabled:opacity-60 ${
+          className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-display font-semibold uppercase tracking-wider border transition-all ${
             isStreaming
               ? 'bg-accent-coral/10 border-accent-coral/30 text-accent-coral hover:bg-accent-coral/20'
               : 'bg-accent-teal/10 border-accent-teal/30 text-accent-teal hover:bg-accent-teal/20'
           }`}
         >
-          {isConnecting
-            ? <><Loader2 size={12} className="animate-spin" />Connecting</>
+          {isWakingUp
+            ? <><Loader2 size={12} className="animate-spin" />Waking up…</>
+            : isConnecting
+            ? <><Loader2 size={12} className="animate-spin" />Connecting…</>
             : isStreaming ? 'Stop' : 'Start'
           }
         </button>
