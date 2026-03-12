@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import useWebSocket, { ReadyState } from 'react-use-websocket';
+import { Loader2 } from 'lucide-react';
 import { LandingPage } from './components/LandingPage';
 import { Sidebar } from './components/Sidebar';
 import { PhaseStepper } from './components/PhaseStepper';
@@ -121,22 +122,61 @@ export default function App() {
     }
   }, [readyState]);
 
+  const isConnecting = readyState === ReadyState.CONNECTING;
+
   if (!isSystemActive) {
     return <LandingPage onEnter={() => setIsSystemActive(true)} />;
   }
 
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-oracle-deep text-oracle-text">
-      <Sidebar 
-        batchId={batchId}
-        setBatchId={setBatchId}
-        isStreaming={isStreaming}
-        onStart={handleStart}
-        onStop={handleStop}
-        stats={stats}
-      />
+    <div className="flex flex-col md:flex-row h-screen w-screen overflow-hidden bg-oracle-deep text-oracle-text">
 
-      <div className="flex-1 flex flex-col p-6 overflow-y-auto">
+      {/* ── Mobile-only top control bar ── */}
+      <div className="flex md:hidden items-center gap-2 px-3 py-2.5 border-b border-oracle-border/50 bg-oracle-base shrink-0 z-20">
+        <div className="flex flex-col min-w-0 shrink-0">
+          <span className="font-display text-sm font-bold text-accent-teal">Eco-Twin</span>
+          <span className="font-mono text-[9px] text-oracle-muted/40 uppercase tracking-wider">Oracle</span>
+        </div>
+        <select
+          value={batchId}
+          onChange={e => setBatchId(e.target.value)}
+          disabled={isStreaming}
+          className="flex-1 mx-2 bg-oracle-deep border border-oracle-border rounded px-2 py-1.5 text-xs font-mono text-oracle-text focus:outline-none focus:border-accent-teal/50 disabled:opacity-40 transition-all"
+        >
+          {Array.from({ length: 61 }).map((_, i) => {
+            const id = `T${String(i + 1).padStart(3, '0')}`;
+            return <option key={id} value={id}>{id}</option>;
+          })}
+        </select>
+        <button
+          onClick={isStreaming ? handleStop : handleStart}
+          disabled={isConnecting}
+          className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-display font-semibold uppercase tracking-wider border transition-all disabled:opacity-60 ${
+            isStreaming
+              ? 'bg-accent-coral/10 border-accent-coral/30 text-accent-coral hover:bg-accent-coral/20'
+              : 'bg-accent-teal/10 border-accent-teal/30 text-accent-teal hover:bg-accent-teal/20'
+          }`}
+        >
+          {isConnecting
+            ? <><Loader2 size={12} className="animate-spin" />Connecting</>
+            : isStreaming ? 'Stop' : 'Start'
+          }
+        </button>
+      </div>
+
+      {/* ── Desktop sidebar — hidden on mobile ── */}
+      <div className="hidden md:flex">
+        <Sidebar
+          batchId={batchId}
+          setBatchId={setBatchId}
+          isStreaming={isStreaming}
+          onStart={handleStart}
+          onStop={handleStop}
+          stats={stats}
+        />
+      </div>
+
+      <div className="flex-1 flex flex-col p-3 md:p-6 overflow-y-auto min-h-0">
         <PhaseStepper currentPhase={dfaState} />
         <MetricsGrid telemetry={telemetry} bmuDistance={bmuDistance} qualityMargin={qualityMargin} />
         
