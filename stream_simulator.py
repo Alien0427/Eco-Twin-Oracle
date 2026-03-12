@@ -150,6 +150,7 @@ def _sync_dfa_state(
 async def stream_batch_data(
     batch_id: str,
     tick_delay: float = TICK_DELAY_SECONDS,
+    stride: int = 1,
 ) -> AsyncGenerator[tuple[BatchTelemetry, ManufacturingPhase, float], None]:
     """
     Async generator (Jackson Structured Design process body) that:
@@ -192,14 +193,19 @@ async def stream_batch_data(
     )
 
     # ── Process ─────────────────────────────────────────────────────────────
-    for _, row in df.iterrows():
+    for idx, (_, row) in enumerate(df.iterrows()):
         # Transform: validate raw row through Pydantic physics constraints
         telemetry = _validate_row(row)
 
-        # State: synchronise DFA with the physical phase from the CSV
+        # State: always sync DFA regardless of stride so phase transitions
+        # are never missed and the automaton stays perfectly in step.
         current_phase = _sync_dfa_state(dfa, telemetry)
 
-        # Yield the validated telemetry + live DFA state to the consumer + quality margin
+        # Only yield every stride-th row — skipped rows still advanced the
+        # DFA above, so all phase boundaries remain correct.
+        if idx % stride != 0:
+            continue
+
         yield telemetry, current_phase, quality_margin
 
         # Simulated real-time tick (non-blocking)

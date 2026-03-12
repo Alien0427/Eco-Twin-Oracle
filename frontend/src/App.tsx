@@ -13,6 +13,7 @@ import { LedgerAlert } from './components/LedgerAlert';
 export default function App() {
   const [isSystemActive, setIsSystemActive] = useState(false);
   const [batchId, setBatchId] = useState('T060');
+  const [speed, setSpeed] = useState(1);
   const [isStreaming, setIsStreaming] = useState(false);
   const [shouldConnect, setShouldConnect] = useState(false);
   
@@ -38,7 +39,7 @@ export default function App() {
   const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000';
   const wsProtocol = backendUrl.startsWith('https') ? 'wss' : 'ws';
   const wsHost = backendUrl.replace(/^https?:\/\//, '');
-  const socketUrl = shouldConnect ? `${wsProtocol}://${wsHost}/ws/live-batch/${batchId}` : null;
+  const socketUrl = shouldConnect ? `${wsProtocol}://${wsHost}/ws/live-batch/${batchId}?speed=${speed}` : null;
   
   const { lastMessage, readyState } = useWebSocket(socketUrl, {
     // Retry up to 5 times (2 s apart) when mobile carriers/proxies drop the connection
@@ -213,6 +214,8 @@ export default function App() {
           onStart={handleStart}
           onStop={handleStop}
           stats={stats}
+          speed={speed}
+          setSpeed={setSpeed}
         />
       </div>
 

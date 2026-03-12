@@ -1,4 +1,4 @@
-import { Terminal, Database, Server } from 'lucide-react';
+import { Terminal, Database, Server, Zap } from 'lucide-react';
 
 interface SidebarProps {
   batchId: string;
@@ -7,9 +7,11 @@ interface SidebarProps {
   onStart: () => void;
   onStop: () => void;
   stats: { rows: number; alerts: number };
+  speed: number;
+  setSpeed: (s: number) => void;
 }
 
-export function Sidebar({ batchId, setBatchId, isStreaming, onStart, onStop, stats }: SidebarProps) {
+export function Sidebar({ batchId, setBatchId, isStreaming, onStart, onStop, stats, speed, setSpeed }: SidebarProps) {
   return (
     <div className="w-72 h-screen flex flex-col pt-5 bg-oracle-base border-r border-oracle-border/50 shadow-[2px_0_20px_rgba(0,0,0,0.4)] z-20 overflow-y-auto shrink-0">
 
@@ -38,6 +40,25 @@ export function Sidebar({ batchId, setBatchId, isStreaming, onStart, onStop, sta
               const id = `T${String(i + 1).padStart(3, '0')}`;
               return <option key={id} value={id}>{id}</option>;
             })}
+          </select>
+        </div>
+
+        {/* ── Sim Speed ─── */}
+        <div className="space-y-2">
+          <label className="font-mono text-[13px] text-oracle-muted uppercase tracking-[0.15em] flex items-center gap-1.5">
+            <Zap size={12} className="text-accent-gold" /> Sim Speed
+          </label>
+          <select
+            value={speed}
+            onChange={(e) => setSpeed(Number(e.target.value))}
+            disabled={isStreaming}
+            className="w-full bg-oracle-deep border border-oracle-border rounded-lg px-3 py-2 text-sm font-mono text-oracle-text focus:outline-none focus:border-accent-teal/50 focus:ring-1 focus:ring-accent-teal/20 disabled:opacity-40 transition-all"
+          >
+            <option value={1}>1x — Full detail</option>
+            <option value={2}>2x — Fast</option>
+            <option value={3}>3x — Faster</option>
+            <option value={4}>4x — Very fast</option>
+            <option value={5}>5x — Max speed</option>
           </select>
         </div>
 

@@ -474,7 +474,7 @@ async def get_phases() -> list[dict]:
 # ===========================================================================
 
 @app.websocket("/ws/live-batch/{batch_id}")
-async def websocket_live_batch(websocket: WebSocket, batch_id: str):
+async def websocket_live_batch(websocket: WebSocket, batch_id: str, speed: int = 1):
     """
     WebSocket endpoint for real-time batch telemetry streaming.
 
@@ -500,7 +500,8 @@ async def websocket_live_batch(websocket: WebSocket, batch_id: str):
     total_arbitrage = 0
 
     try:
-        async for telemetry, current_phase, quality_margin in stream_batch_data(batch_id, tick_delay=0.0):
+        stride = max(1, min(speed, 10))  # clamp: 1x–10x
+        async for telemetry, current_phase, quality_margin in stream_batch_data(batch_id, tick_delay=0.0, stride=stride):
             power_history.append(telemetry.Power_Consumption_kW)
 
             pvr_alert = analyze_spectral_friction(telemetry)
