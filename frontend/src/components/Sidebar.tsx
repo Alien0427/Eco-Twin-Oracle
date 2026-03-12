@@ -12,23 +12,23 @@ interface SidebarProps {
 export function Sidebar({ batchId, setBatchId, isStreaming, onStart, onStop, stats }: SidebarProps) {
   return (
     <div className="w-72 h-screen flex flex-col pt-5 bg-oracle-base border-r border-oracle-border/50 shadow-[2px_0_20px_rgba(0,0,0,0.4)] z-20 overflow-y-auto shrink-0">
-      
+
       {/* ── Brand ─── */}
       <div className="px-5 pb-5 border-b border-oracle-border/40">
         <h1 className="font-display font-bold text-xl tracking-tight text-white flex items-center gap-2">
           <Terminal size={18} className="text-accent-teal" />
           <span className="text-gradient-brand">Eco-Twin Oracle</span>
         </h1>
-        <p className="font-mono text-[10px] text-oracle-muted/50 mt-1 uppercase tracking-[0.15em]">AVEVA Hackathon · Track B</p>
+        <p className="font-mono text-[13px] text-oracle-muted/90 mt-1 uppercase tracking-[0.15em]">AVEVA Hackathon · Track B</p>
       </div>
 
       <div className="p-5 space-y-5 flex-1">
         {/* ── Batch Selector ─── */}
         <div className="space-y-2">
-          <label className="font-mono text-[10px] text-oracle-muted uppercase tracking-[0.15em] flex items-center gap-1.5">
+          <label className="font-mono text-[13px] text-oracle-muted uppercase tracking-[0.15em] flex items-center gap-1.5">
             <Database size={12} /> Batch ID
           </label>
-          <select 
+          <select
             value={batchId}
             onChange={(e) => setBatchId(e.target.value)}
             disabled={isStreaming}
@@ -43,7 +43,7 @@ export function Sidebar({ batchId, setBatchId, isStreaming, onStart, onStop, sta
 
         {/* ── Controls ─── */}
         <div className="space-y-2">
-          <button 
+          <button
             onClick={onStart}
             disabled={isStreaming}
             className="w-full py-2.5 rounded-lg font-display font-semibold text-xs uppercase tracking-[0.1em] transition-all duration-300 border cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed bg-accent-teal/[0.08] border-accent-teal/25 text-accent-teal hover:bg-accent-teal/[0.15] hover:border-accent-teal/50 hover:shadow-[0_0_20px_-4px_rgba(45,212,168,0.25)] flex justify-center items-center gap-2"
@@ -51,8 +51,8 @@ export function Sidebar({ batchId, setBatchId, isStreaming, onStart, onStop, sta
             <span className="w-1.5 h-1.5 rounded-full bg-accent-teal animate-pulse" />
             Start Simulation
           </button>
-          
-          <button 
+
+          <button
             onClick={onStop}
             disabled={!isStreaming}
             className="w-full py-2.5 rounded-lg font-display font-semibold text-xs uppercase tracking-[0.1em] transition-all duration-300 border cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed bg-oracle-surface border-oracle-border text-oracle-muted hover:bg-accent-coral/[0.08] hover:border-accent-coral/30 hover:text-accent-coral flex justify-center items-center gap-2"
@@ -64,15 +64,15 @@ export function Sidebar({ batchId, setBatchId, isStreaming, onStart, onStop, sta
 
         {/* ── Stats ─── */}
         <div className="pt-4 border-t border-oracle-border/30">
-          <h2 className="font-mono text-[10px] text-oracle-muted/50 uppercase tracking-[0.15em] mb-3">Session</h2>
+          <h2 className="font-mono text-[10px] text-oracle-muted/90 uppercase tracking-[0.15em] mb-3">Session</h2>
           <div className="grid grid-cols-2 gap-2">
-            <div className="bg-oracle-deep border border-oracle-border/40 rounded-lg p-2.5 text-center">
+            <div className="bg-oracle-deep border border-oracle-border/60 rounded-lg p-2.5 text-center">
               <div className="text-lg font-mono font-bold text-accent-teal">{stats.rows}</div>
-              <div className="font-mono text-[9px] text-oracle-muted/40 uppercase mt-0.5">Rows</div>
+              <div className="font-mono text-[9px] text-oracle-muted/90 uppercase mt-0.5">Rows</div>
             </div>
-            <div className="bg-oracle-deep border border-oracle-border/40 rounded-lg p-2.5 text-center">
+            <div className="bg-oracle-deep border border-oracle-border/60 rounded-lg p-2.5 text-center">
               <div className="text-lg font-mono font-bold text-accent-gold">{stats.alerts}</div>
-              <div className="font-mono text-[9px] text-oracle-muted/40 uppercase mt-0.5">Alerts</div>
+              <div className="font-mono text-[9px] text-oracle-muted/90 uppercase mt-0.5">Alerts</div>
             </div>
           </div>
         </div>

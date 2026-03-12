@@ -23,8 +23,8 @@ function MetricCard({
   return (
     <div className="bg-oracle-card/60 border border-oracle-border/40 rounded-xl p-3.5 transition-all duration-300 hover:border-oracle-border-light/50 group">
       <div className="flex items-center gap-1.5 mb-1.5">
-        <Icon size={12} className="text-oracle-muted/40 group-hover:text-accent-teal/60 transition-colors" />
-        <span className="font-mono text-[9px] text-oracle-muted/50 uppercase tracking-[0.12em]">{label}</span>
+        <Icon size={14} className="text-oracle-muted/70 group-hover:text-accent-teal/90 transition-colors" />
+        <span className="font-mono text-xs text-oracle-muted/90 font-semibold uppercase tracking-[0.1em]">{label}</span>
       </div>
       <div className={clsx("font-mono font-bold text-xl truncate", valueClass || "text-oracle-text")}>
         {value}

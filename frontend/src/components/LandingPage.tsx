@@ -15,14 +15,14 @@ function useConstellationCanvas(canvasRef: React.RefObject<HTMLCanvasElement | n
   const raf = useRef<number>(0);
 
   const init = useCallback((w: number, h: number) => {
-    const count = Math.floor((w * h) / 12000);
+    const count = Math.floor((w * h) / 6000);
     particles.current = Array.from({ length: count }, () => ({
       x: Math.random() * w,
       y: Math.random() * h,
       vx: (Math.random() - 0.5) * 0.3,
       vy: (Math.random() - 0.5) * 0.3,
-      r: Math.random() * 1.5 + 0.5,
-      o: Math.random() * 0.5 + 0.2,
+      r: Math.random() * 1.8 + 0.6,
+      o: Math.random() * 0.6 + 0.25,
     }));
   }, []);
 
@@ -60,8 +60,8 @@ function useConstellationCanvas(canvasRef: React.RefObject<HTMLCanvasElement | n
         // Mouse repulsion
         const dx = p.x - mouse.x, dy = p.y - mouse.y;
         const dist = Math.sqrt(dx * dx + dy * dy);
-        if (dist < 160) {
-          const force = (160 - dist) / 160 * 0.008;
+        if (dist < 200) {
+          const force = (200 - dist) / 200 * 0.012;
           p.vx += dx * force; p.vy += dy * force;
         }
 
@@ -75,19 +75,19 @@ function useConstellationCanvas(canvasRef: React.RefObject<HTMLCanvasElement | n
       }
 
       // Connection lines
-      const maxDist = 120;
+      const maxDist = 150;
       for (let i = 0; i < pts.length; i++) {
         for (let j = i + 1; j < pts.length; j++) {
           const dx = pts[i].x - pts[j].x;
           const dy = pts[i].y - pts[j].y;
           const d = dx * dx + dy * dy;
           if (d < maxDist * maxDist) {
-            const alpha = (1 - Math.sqrt(d) / maxDist) * 0.15;
+            const alpha = (1 - Math.sqrt(d) / maxDist) * 0.22;
             ctx.beginPath();
             ctx.moveTo(pts[i].x, pts[i].y);
             ctx.lineTo(pts[j].x, pts[j].y);
             ctx.strokeStyle = `rgba(45, 212, 168, ${alpha})`;
-            ctx.lineWidth = 0.6;
+            ctx.lineWidth = 0.7;
             ctx.stroke();
           }
         }
