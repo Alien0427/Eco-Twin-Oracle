@@ -30,6 +30,9 @@ export default function App() {
   const [batchSummary, setBatchSummary] = useState<any>(null);
   const [anomalyHistory, setAnomalyHistory] = useState<Record<string, number>>({});
   const wakeAbortRef = useRef<AbortController | null>(null);
+  // Stable ref so the shouldReconnect callback always sees the latest value
+  const shouldConnectRef = useRef(false);
+  shouldConnectRef.current = shouldConnect;
 
   // Dynamic backend URL: uses env var in production, localhost for dev
   const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000';
@@ -38,7 +41,10 @@ export default function App() {
   const socketUrl = shouldConnect ? `${wsProtocol}://${wsHost}/ws/live-batch/${batchId}` : null;
   
   const { lastMessage, readyState } = useWebSocket(socketUrl, {
-    shouldReconnect: () => false,
+    // Retry up to 5 times (2 s apart) when mobile carriers/proxies drop the connection
+    shouldReconnect: () => shouldConnectRef.current,
+    reconnectAttempts: 5,
+    reconnectInterval: 2000,
   });
 
   const handleStart = async () => {
@@ -141,15 +147,19 @@ export default function App() {
   }, [lastMessage, setTimeSeries, setBmuHistory, setStats, setTelemetry, setDfaState, setPrescription, setXaiData, setQualityMargin, setIsStreaming, setShouldConnect, setLedgerStatus, setBatchSummary, setAnomalyHistory]);
 
   useEffect(() => {
-    if (readyState === ReadyState.CLOSED) {
+    // Only reset UI when the socket closes because the user hit Stop.
+    // If shouldConnect is still true the close was unexpected (mobile network
+    // drop, carrier proxy, Render busy) — leave isStreaming=true so the
+    // shouldReconnect callback above gets to retry.
+    if (readyState === ReadyState.CLOSED && !shouldConnect) {
       setIsStreaming(false);
-      setShouldConnect(false);
     }
-  }, [readyState]);
+  }, [readyState, shouldConnect]);
 
-  // isWakingUp: HTTP ping in flight (Render cold-start); isConnecting: WS handshake
-  const isWakingUp = isStreaming && !shouldConnect;
+  // Phase states for the mobile button label
+  const isWakingUp  = isStreaming && !shouldConnect;
   const isConnecting = !isWakingUp && readyState === ReadyState.CONNECTING;
+  const isRetrying   = !isWakingUp && shouldConnect && readyState === ReadyState.CLOSED;
 
   if (!isSystemActive) {
     return <LandingPage onEnter={() => setIsSystemActive(true)} />;
@@ -185,6 +195,8 @@ export default function App() {
         >
           {isWakingUp
             ? <><Loader2 size={12} className="animate-spin" />Waking up…</>
+            : isRetrying
+            ? <><Loader2 size={12} className="animate-spin" />Retrying…</>
             : isConnecting
             ? <><Loader2 size={12} className="animate-spin" />Connecting…</>
             : isStreaming ? 'Stop' : 'Start'
